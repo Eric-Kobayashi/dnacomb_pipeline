@@ -1,0 +1,45 @@
+title: "QC Report"
+filename: "multiqc_report"
+intro_text: "MultiQC report summarising QC and analysis results."
+
+export_plots: true
+skip_generalstats: true
+
+module_order:
+  - fastqc:
+      name: 'Raw Reads'
+      info: 'FastQC results on raw reads'
+      path_filters:
+        - "*_raw_fastqc.zip"
+  - fastqc:
+      name: 'Downsampled Reads'
+      info: 'FastQC results on downsampled reads'
+      path_filters:
+        - "*_downsampled_fastqc.zip"
+  - fastqc:
+      name: 'Merged Reads'
+      info: 'FastQC results on merged reads'
+      path_filters:
+        - "*_merged_fastqc.zip"
+  - fastqc:
+      name: 'Unmerged Reads'
+      info: 'FastQC results on unmerged reads discarded by PEAR'
+      path_filters:
+        - "*_unmerged_unassembled_f_fastqc.zip"
+        - "*_unmerged_unassembled_r_fastqc.zip"
+        - "*_unmerged_discarded_fastqc.zip"
+  - fastqc:
+      name: 'Trimmed Reads'
+      info: 'FastQC results on trimmed reads'
+      path_filters:
+        - "*_trimmed_fastqc.zip"
+  - fastqc:
+      name: 'Untrimmed Reads'
+      info: 'FastQC results on untrimmed reads discarded by CutAdapt'
+      path_filters:
+        - "*_untrimmed_fastqc.zip"
+  - cutadapt:
+      name: 'Cutadapt'
+      info: 'Cutadapt QC JSON statistics'
+      path_filters:
+        - "*cutadapt.json"
