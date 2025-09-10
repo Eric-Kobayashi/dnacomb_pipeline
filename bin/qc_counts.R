@@ -16,7 +16,7 @@ category_colours <- c(
   "match" = "green", "exact_match" = "green", "nearest_match" = "darkgreen",
   "mismatch" = "orange", "nonmatch" = "red", 
   "recombination" = "blue", "exact_recombination" = "blue", "nearest_recombination" = "darkblue",
-  "low_mean_quality" = "brown", "bad_alignment" = "grey", "multimatch" = "purple"
+  "multimatch" = "purple"
 )
 
 filter_colours = c(
@@ -42,12 +42,14 @@ root_names <- basename(args$roots)
 counts <- str_c(args$roots, ".counts.tsv") %>%
   set_names(root_names) %>%
   map(read_tsv) %>%
-  bind_rows(.id = "_sample")
+  bind_rows(.id = "_sample") %>%
+  mutate(combination_status = factor(combination_status, levels = rev(names(category_colours))))
 
 library_counts <- str_c(args$roots, ".library_counts.tsv") %>%
   set_names(root_names) %>%
   map(read_tsv) %>%
-  bind_rows(.id = "_sample")
+  bind_rows(.id = "_sample") %>%
+  mutate(combination_status = factor(combination_status, levels = rev(names(category_colours))))
 
 summary <- str_c(args$roots, ".summary.tsv") %>%
   set_names(root_names) %>%
@@ -59,7 +61,8 @@ regions <- str_remove(names(counts)[str_detect(names(counts), "_nearest")], "_ne
 
 # Filtering Summary
 p_filtering_abs <- filter(summary, group == "filtered" & metric != "total" | group == "unfiltered" & metric == "total") %>%
-  mutate(metric = if_else(group == "filtered", metric, "unfiltered")) %>%
+  mutate(metric = if_else(group == "filtered", metric, "unfiltered"),
+         metric = factor(metric, levels = rev(names(filter_colours)))) %>%
   ggplot(aes(x = `_sample`, y = count, fill = metric)) +
   geom_col(width = 0.5) +
   scale_fill_manual(name = "", values = filter_colours) +
@@ -71,7 +74,8 @@ p_filtering_abs <- filter(summary, group == "filtered" & metric != "total" | gro
         legend.position = "bottom")
 
 p_filtering_prop <- filter(summary, group == "filtered" & metric != "total" | group == "unfiltered" & metric == "total") %>%
-  mutate(metric = if_else(group == "filtered", metric, "unfiltered")) %>%
+  mutate(metric = if_else(group == "filtered", metric, "unfiltered"),
+         metric = factor(metric, levels = rev(names(filter_colours)))) %>%
   ggplot(aes(x = `_sample`, y = overall_proportion, fill = metric)) +
   geom_col(width = 0.5) +
   scale_fill_manual(name = "", values = filter_colours) +
@@ -86,6 +90,7 @@ p_filtering <- p_filtering_abs + p_filtering_prop + guide_area() +
   plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect")
 
 p_matches_abs <- filter(summary, group == "unfiltered", metric != "total") %>%
+  mutate(metric = factor(metric, levels = rev(names(category_colours)))) %>%
   ggplot(aes(x = `_sample`, y = count, fill = metric)) +
   geom_col(width = 0.5) +
   scale_fill_manual(name = "", values = category_colours) +
@@ -97,6 +102,7 @@ p_matches_abs <- filter(summary, group == "unfiltered", metric != "total") %>%
         legend.position = "bottom")
 
 p_matches_prop <- filter(summary, group == "unfiltered", metric != "total") %>%
+  mutate(metric = factor(metric, levels = rev(names(category_colours)))) %>%
   ggplot(aes(x = `_sample`, y = group_proportion, fill = metric)) +
   geom_col(width = 0.5) +
   scale_fill_manual(name = "", values = category_colours) +
@@ -113,8 +119,7 @@ p_matches <- p_matches_abs + p_matches_prop + guide_area() +
 # Library completeness
 completeness <- select(library_counts, `_sample`, group, combination_id, count) %>%
   count(`_sample`, combination_id, wt = count, name = "count") %>%
-  left_join(lib, .,
-          by = join_by(`_id` == combination_id)) %>%
+  left_join(lib, ., by = join_by(`_id` == combination_id), relationship = "many-to-many") %>%
   mutate(`_sample` = factor(`_sample`, levels = samples)) %>%
   complete(`_sample`, nesting(`_id`, !!!rlang::syms(regions))) %>%
   drop_na(`_sample`) %>%
