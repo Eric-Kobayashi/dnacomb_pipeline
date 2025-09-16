@@ -58,6 +58,7 @@ summary <- str_c(args$roots, ".summary.tsv") %>%
 
 samples <- unique(counts$`_sample`)
 regions <- str_remove(names(counts)[str_detect(names(counts), "_nearest")], "_nearest")
+lib_regions <- regions[regions %in% names(lib)]
 
 # Filtering Summary
 p_filtering_abs <- filter(summary, group == "filtered" & metric != "total" | group == "unfiltered" & metric == "total") %>%
@@ -121,7 +122,7 @@ completeness <- select(library_counts, `_sample`, group, combination_id, count) 
   count(`_sample`, combination_id, wt = count, name = "count") %>%
   left_join(lib, ., by = join_by(`_id` == combination_id), relationship = "many-to-many") %>%
   mutate(`_sample` = factor(`_sample`, levels = samples)) %>%
-  complete(`_sample`, nesting(`_id`, !!!rlang::syms(regions))) %>%
+  complete(`_sample`, nesting(`_id`, !!!rlang::syms(lib_regions))) %>%
   drop_na(`_sample`) %>%
   group_by(`_sample`) %>%
   summarise(p = sum(!is.na(count)) / n())
