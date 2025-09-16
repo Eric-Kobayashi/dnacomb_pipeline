@@ -8,9 +8,6 @@ nextflow.enable.dsl = 2
 
 process fastqc {
     tag "$meta.id"
-    cpus 1
-    memory '4 GB'
-    queue 'normal'
 
     input:
     tuple val(meta), path(reads)
@@ -49,9 +46,6 @@ process fastqc {
 
 process multiqc {
     tag "multiqc"
-    cpus 1
-    memory '4 GB'
-    queue 'normal'
 
     input:
     path zip_files
@@ -77,9 +71,7 @@ process multiqc {
 }
 
 process seqkit_stats {
-    cpus 1
-    memory '2 GB'
-    queue 'normal'
+    tag "seqkit stats"
 
     input:
     path reads
@@ -100,9 +92,6 @@ process seqkit_stats {
 
 process seqtk {
     tag "$meta.id"
-    cpus 1
-    memory '4 GB'
-    queue 'normal'
 
     input:
     tuple val(meta), path(reads)
@@ -138,9 +127,6 @@ process seqtk {
 
 process pear {
     tag "$meta.id"
-    cpus 1
-    memory '4 GB'
-    queue 'normal'
 
     input:
     tuple val(meta), path(reads)
@@ -182,9 +168,6 @@ process pear {
 
 process cutadapt {
     tag "$meta.id"
-    cpus 1
-    memory '4 GB'
-    queue 'normal'
 
     input:
     tuple val(meta), path(reads)
@@ -247,9 +230,6 @@ process cutadapt {
 
 process dnacomb {
     tag "$meta.id"
-    cpus 1
-    memory '4 GB'
-    queue 'normal'
 
     input:
     tuple val(meta), path(reads)
