@@ -41,17 +41,14 @@ include {
 } from './src/pipelines.nf'
 
 process qc_counts {
-    cpus 1
-    memory '8 GB'
-    queue 'normal'
-
     input:
     path dnacomb_output
     path library
     val roots
 
     output:
-    path "count_qc.pdf", emit: counts
+    path "count_qc.pdf", emit: count_pdf
+    path "count_qc.png", emit: count_png
 
     script:
     """
@@ -61,6 +58,7 @@ process qc_counts {
     stub:
     """
     touch count_qc.pdf
+    touch count_qc.png
     """
 }
 
