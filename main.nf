@@ -204,7 +204,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         )
 
         dnacomb_out = dnacomb.out.counts.mix(
-            dnacomb.out.library_counts, dnacomb.out.log, dnacomb.out.summary
+            dnacomb.out.library_counts, dnacomb.out.log, dnacomb.out.summary, dnacomb.out.filtered
         )
 
         qc_in = dnacomb_out.map{x->x[1]}.collect()

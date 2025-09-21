@@ -241,6 +241,7 @@ process dnacomb {
     tuple val(meta), path("*.counts.tsv"), emit: counts
     tuple val(meta), path("*.library_counts.tsv"), emit: library_counts, optional: true
     tuple val(meta), path("*.summary.tsv"), emit: summary
+    tuple val(meta), path("*.filtered.tsv"), emit: filtered
     tuple val(meta), path("*.log"), emit: log
 
     script:
