@@ -144,7 +144,7 @@ process pear {
         """
         gunzip -f ${reads[0]}
         gunzip -f ${reads[1]}
-        pear -f ${reads[0].baseName} -r ${reads[1].baseName} -o ${meta.id}_merged -j $task.cpus $args
+        pear  --threads ${task.cpus} -f ${reads[0].baseName} -r ${reads[1].baseName} -o ${meta.id}_merged -j $task.cpus $args
         gzip -f ${meta.id}_merged.assembled.fastq
         gzip -f ${meta.id}_merged.unassembled.forward.fastq
         gzip -f ${meta.id}_merged.unassembled.reverse.fastq
@@ -247,7 +247,7 @@ process dnacomb {
     script:
     ls = libspec ? "--library-spec nf_patched_libspec.json" : ""
     r2 = !meta.single_end ? reads[1] : ""
-    cmdargs = "--verbose ${ls} --output ${meta.id} ${args}"
+    cmdargs = "--verbose ${ls} --threads ${task.cpus} --output ${meta.id} ${args}"
     """
     jq '.library = "${library}"' ${libspec} > nf_patched_libspec.json
     jq empty nf_patched_libspec.json || { echo "Patched JSON is invalid"; exit 1; }
