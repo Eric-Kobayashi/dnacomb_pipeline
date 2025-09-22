@@ -38,29 +38,8 @@ include {
     pear;
     cutadapt;
     dnacomb;
+    qc_counts;
 } from './src/pipelines.nf'
-
-process qc_counts {
-    input:
-    path dnacomb_output
-    path library
-    val roots
-
-    output:
-    path "count_qc.pdf", emit: count_pdf
-    path "count_qc.png", emit: count_png
-
-    script:
-    """
-    qc_counts.R --library ${library} --roots ${roots}
-    """
-
-    stub:
-    """
-    touch count_qc.pdf
-    touch count_qc.png
-    """
-}
 
 workflow {
     main:
@@ -210,8 +189,10 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         qc_in = dnacomb_out.map{x->x[1]}.collect()
         roots = dnacomb.out.counts.map{x->x[1].baseName.replaceFirst(".counts", "")}.reduce{a,b-> a + " " + b}
         qc_counts(qc_in, channel.fromPath(library_path).first(), roots)
+        qc_counts_out = qc_counts.out.count_pdf.mix(qc_counts.out.count_png)
     } else {
         dnacomb_out = Channel.empty()
+        qc_counts_out = Channel.empty()
     }
 
     // MultiQC QC Summary
@@ -239,7 +220,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
     pear = pear_out
     cutadapt = cutadapt_out
     dnacomb = dnacomb_out
-    count_qc = qc_counts.out
+    count_qc = qc_counts_out
 }
 
 output {

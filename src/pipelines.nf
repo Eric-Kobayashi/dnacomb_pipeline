@@ -258,6 +258,33 @@ process dnacomb {
     """
     jq '.library = "${library}"' ${libspec} > nf_patched_libspec.json
     jq empty nf_patched_libspec.json || { echo "Patched JSON is invalid"; exit 1; }
-    touch ${meta.id}.counts.tsv ${meta.id}.library_counts.tsv ${meta.id}.summary.tsv ${meta.id}.log
+    touch \\
+       ${meta.id}.counts.tsv \\
+       ${meta.id}.library_counts.tsv \\
+       ${meta.id}.summary.tsv \\
+       ${meta.id}.filtered.tsv \\
+       ${meta.id}.log
+    """
+}
+
+process qc_counts {
+    input:
+    path dnacomb_output
+    path library
+    val roots
+
+    output:
+    path "count_qc.pdf", emit: count_pdf
+    path "count_qc.png", emit: count_png
+
+    script:
+    """
+    qc_counts.R --library ${library} --roots ${roots}
+    """
+
+    stub:
+    """
+    touch count_qc.pdf
+    touch count_qc.png
     """
 }
