@@ -91,7 +91,7 @@ p_filtering_prop <- filter(summary, group == "filtered" & metric != "total" | gr
 
 p_filtering <- p_filtering_abs + p_filtering_prop + guide_area() +
   plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect")
-h_filtering <- 0.5 * n_samples
+h_filtering <- min(0.5 * n_samples, 5)
 
 p_matches_abs <- filter(summary, group == "unfiltered", metric != "total") %>%
   mutate(metric = factor(metric, levels = rev(names(category_colours)))) %>%
@@ -119,7 +119,7 @@ p_matches_prop <- filter(summary, group == "unfiltered", metric != "total") %>%
 
 p_matches <- p_matches_abs + p_matches_prop + guide_area() +
   plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect")
-h_matches <- 0.5 * n_samples
+h_matches <- min(0.5 * n_samples, 5)
 
 # Library completeness
 completeness <- select(library_counts, `_sample`, group, combination_id, count) %>%
@@ -138,7 +138,7 @@ p_completeness <- ggplot(completeness, aes(y = `_sample`, x = p)) +
   theme(panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
         axis.ticks.y = element_blank())
-h_completeness <- 0.5 * n_samples
+h_completeness <- min(0.5 * n_samples, 5)
 
 # Library representation
 calc_library_representation <- function(tbl, ...) {
