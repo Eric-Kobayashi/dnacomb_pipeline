@@ -1,7 +1,6 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 nextflow.enable.strict = true
-nextflow.preview.output = true
 
 // Default parameter values
 params.help = false
@@ -72,7 +71,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
     // Load sample sheet
     // Read channels follow NF-Core with structure [meta, reads] where
     // meta is [id: str, single_end: bool]
-    input_reads = Channel
+    input_reads = channel
         .fromPath(params.samples)
         .splitCsv(header: true)
         .map { row ->
@@ -85,8 +84,8 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
 
     // Run FastQC on input reads
     fastqc_input(input_reads, channel.value("raw"))
-    fastqc_zips = fastqc_input.out.zip.collect{it[1]}.ifEmpty([])
-    fastqc_htmls = fastqc_input.out.html.collect{it[1]}.ifEmpty([])
+    fastqc_zips = fastqc_input.out.zip.collect{x->x[1]}.ifEmpty([])
+    fastqc_htmls = fastqc_input.out.html.collect{x->x[1]}.ifEmpty([])
 
     // SeqTK Downsample
     if ( params.downsample.enabled ) {
@@ -101,11 +100,11 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
 
         // Run FastQC
         fastqc_downsampled(downsampled_reads, channel.value("downsampled"))
-        fastqc_zips = fastqc_zips.mix(fastqc_downsampled.out.zip.collect{it[1]}.ifEmpty([]))
-        fastqc_htmls = fastqc_htmls.mix(fastqc_downsampled.out.html.collect{it[1]}.ifEmpty([]))
+        fastqc_zips = fastqc_zips.mix(fastqc_downsampled.out.zip.collect{x->x[1]}.ifEmpty([]))
+        fastqc_htmls = fastqc_htmls.mix(fastqc_downsampled.out.html.collect{x->x[1]}.ifEmpty([]))
     } else {
         downsampled_reads = input_reads
-        seqtk_out = Channel.empty()
+        seqtk_out = channel.empty()
     }
 
     // PEAR Merging
@@ -123,18 +122,18 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         fastqc_discarded(pear_discarded, channel.value("unmerged_discarded"))
 
         fastqc_zips = fastqc_zips.mix(
-            fastqc_merged.out.zip.collect{it[1]}.ifEmpty([]),
-            fastqc_unmerged.out.zip.collect{it[1]}.ifEmpty([]),
-            fastqc_discarded.out.zip.collect{it[1]}.ifEmpty([]),
+            fastqc_merged.out.zip.collect{x->x[1]}.ifEmpty([]),
+            fastqc_unmerged.out.zip.collect{x->x[1]}.ifEmpty([]),
+            fastqc_discarded.out.zip.collect{x->x[1]}.ifEmpty([]),
         )
         fastqc_htmls = fastqc_htmls.mix(
-            fastqc_merged.out.html.collect{it[1]}.ifEmpty([]),
-            fastqc_unmerged.out.html.collect{it[1]}.ifEmpty([]),
-            fastqc_discarded.out.html.collect{it[1]}.ifEmpty([]),
+            fastqc_merged.out.html.collect{x->x[1]}.ifEmpty([]),
+            fastqc_unmerged.out.html.collect{x->x[1]}.ifEmpty([]),
+            fastqc_discarded.out.html.collect{x->x[1]}.ifEmpty([]),
         )
     } else {
         merged_reads = downsampled_reads
-        pear_out = Channel.empty()
+        pear_out = channel.empty()
     }
 
     // CutAdapt Trimming
@@ -151,16 +150,16 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         fastqc_trimmed(cutadapt.out.reads, channel.value("trimmed"))
         fastqc_untrimmed(cutadapt.out.untrimmed_reads, channel.value("untrimmed"))
         fastqc_zips = fastqc_zips.mix(
-            fastqc_trimmed.out.zip.collect{it[1]}.ifEmpty([]),
-            fastqc_untrimmed.out.zip.collect{it[1]}.ifEmpty([])
+            fastqc_trimmed.out.zip.collect{x->x[1]}.ifEmpty([]),
+            fastqc_untrimmed.out.zip.collect{x->x[1]}.ifEmpty([])
         )
         fastqc_htmls = fastqc_htmls.mix(
-            fastqc_trimmed.out.html.collect{it[1]}.ifEmpty([]),
-            fastqc_untrimmed.out.html.collect{it[1]}.ifEmpty([])
+            fastqc_trimmed.out.html.collect{x->x[1]}.ifEmpty([]),
+            fastqc_untrimmed.out.html.collect{x->x[1]}.ifEmpty([])
         )
     } else {
         trimmed_reads = merged_reads
-        cutadapt_out = Channel.empty()
+        cutadapt_out = channel.empty()
     }
 
     // DNAComb Quantification
@@ -191,31 +190,37 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         qc_counts(qc_in, channel.fromPath(library_path).first(), roots)
         qc_counts_out = qc_counts.out.count_pdf.mix(qc_counts.out.count_png)
     } else {
-        dnacomb_out = Channel.empty()
-        qc_counts_out = Channel.empty()
+        dnacomb_out = channel.empty()
+        qc_counts_out = channel.empty()
     }
 
     // MultiQC QC Summary
     multiqc(
-        fastqc_zips.mix(cutadapt.out.json.collect{it[1]}.ifEmpty([])).collect(),
+        fastqc_zips.mix(cutadapt.out.json.collect{x->x[1]}.ifEmpty([])).collect(),
         channel.fromPath( params.multiqc_config ).first()
     )
 
-    // SeqKit Stats summary of all files
-    seqkit_stat_files = input_reads.mix(
-        downsampled_reads,
-        merged_reads,
-        trimmed_reads
-    ).flatMap { i -> i[1] }
-     .unique()
-     .collect()
+    if ( params.qc.seqkit ) {
+        // SeqKit Stats summary of all files
+        seqkit_stat_files = input_reads.mix(
+            downsampled_reads,
+            merged_reads,
+            trimmed_reads
+        ).flatMap { i -> i[1] }
+        .unique()
+        .collect()
 
-    seqkit_stats(seqkit_stat_files)
+        seqkit_stats(seqkit_stat_files)
+        seqkit_out = seqkit_stats.out.tsv
+    } else {
+        seqkit_out = channel.empty()
+    }
+
 
     publish:
     fastqc = fastqc_htmls.mix(fastqc_zips)
     multiqc = multiqc.out.report.mix(multiqc.out.zip, multiqc.out.data, multiqc.out.plots)
-    seqkit_stats = seqkit_stats.out.tsv
+    seqkit_stats = seqkit_out
     seqtk = seqtk_out
     pear = pear_out
     cutadapt = cutadapt_out

@@ -80,6 +80,10 @@ quantify {
     libspec = ""        # Path to LibSpec JSON file
     dnacomb_args = ""   # Additional arguments to pass to DNAComb
 }
+
+qc {
+    seqkit = false      # Generate stats table on all fastq files using seqkit stats (fairly slow so disabled by default)
+}
 ```
 
 ## Input
