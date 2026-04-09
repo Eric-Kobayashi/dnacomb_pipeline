@@ -166,7 +166,6 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
     if ( params.quantify.enabled ) {
         // Read and parse libspec JSON
         def libspec_path = file(params.quantify.libspec)
-        def libspec_json = new groovy.json.JsonSlurper().parse(libspec_path)
 
         // Collect and validate all library files
         def library_files = params.quantify.library.collect { lib -> file(lib) }
