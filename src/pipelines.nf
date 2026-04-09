@@ -245,12 +245,12 @@ process dnacomb {
     tuple val(meta), path("*.log"), emit: log
 
     script:
-    ls = libspec ? "--library-spec nf_patched_libspec.json" : ""
+    ls = libspec ? "--library-spec ${libspec}" : ""
+    lib_paths = library instanceof List ? library.join(" ") : library
+    lib = library ? "--library ${lib_paths}" : ""
     r2 = !meta.single_end ? reads[1] : ""
-    cmdargs = "--verbose ${ls} --threads ${task.cpus} --output ${meta.id} ${args}"
+    cmdargs = "--verbose ${ls} ${lib} --threads ${task.cpus} --output ${meta.id} ${args}"
     """
-    jq '.library = "${library}"' ${libspec} > nf_patched_libspec.json
-    jq empty nf_patched_libspec.json || { echo "Patched JSON is invalid"; exit 1; }
     dnacomb ${cmdargs} ${reads[0]} ${r2} > ${meta.id}.log 2>&1
     """
 

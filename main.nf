@@ -167,17 +167,19 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         // Read and parse libspec JSON
         def libspec_path = file(params.quantify.libspec)
         def libspec_json = new groovy.json.JsonSlurper().parse(libspec_path)
-        def library_path = file(libspec_json.library)
 
-        // Optionally check existence
-        if (!library_path.exists()) {
-            error "Library file '${libspec_json.library}' (from ${libspec_path}) not found"
+        // Collect and validate all library files
+        def library_files = params.quantify.library.collect { lib -> file(lib) }
+        library_files.each { lib ->
+            if (!lib.exists()) {
+                error "Library file '${lib}' not found"
+            }
         }
 
         dnacomb(
             trimmed_reads,
             channel.fromPath(libspec_path).first(),
-            channel.fromPath(library_path).first(),
+            channel.fromPath(library_files).collect(),
             channel.value(params.quantify.dnacomb_args)
         )
 
@@ -187,7 +189,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
 
         qc_in = dnacomb_out.map{x->x[1]}.collect()
         roots = dnacomb.out.counts.map{x->x[1].baseName.replaceFirst(".counts", "")}.reduce{a,b-> a + " " + b}
-        qc_counts(qc_in, channel.fromPath(library_path).first(), roots)
+        qc_counts(qc_in, channel.fromPath(library_files).collect(), roots)
         qc_counts_out = qc_counts.out.count_pdf.mix(qc_counts.out.count_png)
     } else {
         dnacomb_out = channel.empty()
