@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 // General processes and workflows to share across NF pipelines
 nextflow.enable.dsl = 2
+nextflow.enable.strict = true
 
 // All rules taking/emitting reads assume an input channel using the NF-Core structure.
 // It contains a tuple [meta, reads] where meta is [id: str, single_end: bool] and
@@ -11,7 +12,6 @@ process fastqc {
 
     input:
     tuple val(meta), path(reads)
-    val(suffix)
 
     output:
     tuple val(meta), path("*.html"), emit: html
@@ -20,26 +20,26 @@ process fastqc {
     script:
     if (meta.single_end) {
         """
-        [ ! -f ${meta.id}_${suffix}.fastq.gz ] && ln -s $reads ${meta.id}_${suffix}.fastq.gz
-        fastqc --threads $task.cpus ${meta.id}_${suffix}.fastq.gz
+        [ ! -f ${meta.id}_${meta.label}.fastq.gz ] && ln -s $reads ${meta.id}_${meta.label}.fastq.gz
+        fastqc --threads $task.cpus ${meta.id}_${meta.label}.fastq.gz
         """
     } else {
         """
-        [ ! -f ${meta.id}_f_${suffix}.fastq.gz ] && ln -s ${reads[0]} ${meta.id}_f_${suffix}.fastq.gz
-        [ ! -f ${meta.id}__r_${suffix}.fastq.gz ] && ln -s ${reads[1]} ${meta.id}_r_${suffix}.fastq.gz
-        fastqc --threads $task.cpus ${meta.id}_f_${suffix}.fastq.gz ${meta.id}_r_${suffix}.fastq.gz
+        [ ! -f ${meta.id}_f_${meta.label}.fastq.gz ] && ln -s ${reads[0]} ${meta.id}_f_${meta.label}.fastq.gz
+        [ ! -f ${meta.id}__r_${meta.label}.fastq.gz ] && ln -s ${reads[1]} ${meta.id}_r_${meta.label}.fastq.gz
+        fastqc --threads $task.cpus ${meta.id}_f_${meta.label}.fastq.gz ${meta.id}_r_${meta.label}.fastq.gz
         """
     }
 
     stub:
     if (meta.single_end) {
         """
-        touch ${meta.id}_${suffix}.zip ${meta.id}_${suffix}.html
+        touch ${meta.id}_${meta.label}.zip ${meta.id}_${meta.label}.html
         """
     } else {
         """
-        touch ${meta.id}_f_${suffix}.zip ${meta.id}_r_${suffix}.zip
-        touch ${meta.id}_f_${suffix}.html ${meta.id}_r_${suffix}.html
+        touch ${meta.id}_f_${meta.label}.zip ${meta.id}_r_${meta.label}.zip
+        touch ${meta.id}_f_${meta.label}.html ${meta.id}_r_${meta.label}.html
         """
     }
 }
@@ -174,10 +174,10 @@ process cutadapt {
     val args
 
     output:
-    tuple val(meta), path('*{,_f,_r}_trimmed.fastq.gz')  , emit: reads
+    tuple val(meta), path('*{,_f,_r}_trimmed.fastq.gz'), emit: reads
     tuple val(meta), path('*{,_f,_r}_untrimmed.fastq.gz'), emit: untrimmed_reads, optional: true
-    tuple val(meta), path('*.log')                       , emit: log
-    tuple val(meta), path('*.json')                      , emit: json
+    tuple val(meta), path('*.log'), emit: log
+    tuple val(meta), path('*.json'), emit: json
 
     script:
     if (meta.single_end) {
@@ -267,24 +267,71 @@ process dnacomb {
     """
 }
 
-process qc_counts {
+process count_records {
+    tag "${meta.id}:${meta.label}"
+
     input:
-    path dnacomb_output
-    path library
-    val roots
+    tuple val(meta), path(reads)
 
     output:
-    path "count_qc.pdf", emit: count_pdf
-    path "count_qc.png", emit: count_png
+    path "${meta.id}_${meta.stage}_${meta.label}.tsv", emit: rows
 
     script:
     """
-    qc_counts.R --library ${library} --roots ${roots}
+    count_seqs.py \
+      --sample '${meta.id}' \
+      --stage '${meta.stage}' \
+      --label '${meta.label}' \
+      ${meta.single_end ? '' : '--paired'} \
+      ${reads} \
+      > ${meta.id}_${meta.stage}_${meta.label}.tsv
     """
 
     stub:
     """
-    touch count_qc.pdf
-    touch count_qc.png
+    printf '${meta.id}\\t${meta.stage}\\t${meta.label}\\tsingle\\tfile.fa\\tfasta\\t100\\n' > ${meta.id}_${meta.stage}_${meta.label}.tsv
+    """
+}
+
+process combine_record_counts {
+    input:
+    path rows
+
+    output:
+    path "record_counts.tsv", emit: tsv
+
+    script:
+    """
+    printf 'sample_id\\tstage\\tlabel\\tread\\tfile\\tformat\\trecords\\n' \
+      > record_counts.tsv
+    cat ${rows} >> record_counts.tsv
+    """
+}
+
+process qc_counts {
+    input:
+    path dnacomb_output
+    path libraries
+    path counts
+    path template
+    val roots
+
+    output:
+    path "dnacomb_qc_report.pdf", emit: qc_pdf
+
+    script:
+    """
+    render_qc_report.R \
+        --roots ${roots} \
+        --libraries ${libraries} \
+        --counts ${counts} \
+        --rmd ${template} \
+        --output dnacomb_qc_report
+    """
+
+    stub:
+    """
+    touch dnacomb_qc_report.pdf
+    touch dnacomb_qc_report.html
     """
 }

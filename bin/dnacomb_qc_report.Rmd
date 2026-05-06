@@ -1,0 +1,450 @@
+---
+title: "DNAComb QC"
+output:
+  pdf_document:
+    number_sections: true
+  html_document:
+    number_sections: true
+params:
+  root_paths: !r character
+  library_files: !r character()
+  record_counts_file: null
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: console
+header-includes:
+ \usepackage{float}
+---
+
+```{r setup, include=FALSE}
+# Set parameters
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = 'H', fig.align = "center")
+
+library(magrittr)
+library(tidyverse)
+library(ggpubr)
+library(ggtext)
+library(patchwork)
+
+theme_set(theme_pubclean() + theme(legend.position = 'right',
+                                   plot.title = element_text(hjust = 0.5),
+                                   plot.subtitle = element_text(hjust = 0.5),
+                                   strip.background = element_blank(),
+                                   legend.key = element_blank()))
+
+# Generate plot size based on number of samples
+plot_size <- function(n, min = 4, per_sample = 0.25, max = 11, plus = 0) {
+  max(min, min(max, per_sample * n + plus))
+}
+
+# Shorten long sample names
+shorten_names <- function(x, max = 12) {
+  make.unique(str_c(str_sub(x, end = max - 3), if_else(nchar(x) > max - 3, "...", "")), sep = "")
+}
+
+filter_colours <- c(
+  unfiltered = "#4daf4a", empty_read = "#e41a1c", short_read = "#ff7f00",
+  long_read = "#a65628", bad_alignment = "#984ea3", low_mean_quality = "#377eb8"
+)
+
+category_colours <- c(
+  "match" = "green", "exact_match" = "green", "nearest_match" = "darkgreen",
+  "mismatch" = "orange", "nonmatch" = "red",
+  "recombination" = "blue", "exact_recombination" = "blue", "nearest_recombination" = "darkblue",
+  "multimatch" = "purple", "uncompared" = "grey"
+)
+```
+
+```{r data_import, include=FALSE}
+read_lib <- function(x) {
+  tbl <- read_tsv(x)
+  name <- str_remove(basename(x), "\\..*$")
+  if (!"_id" %in% names(tbl)) {
+    tbl <- mutate(tbl, `_id` = str_c(name, 1:n()))
+  }
+  tbl
+}
+
+libraries <- map(params$library_files, read_lib) %>%
+  set_names(str_remove(basename(params$library_files), "\\..*$"))
+
+root_names <- basename(params$root_paths)
+
+library_counts <- str_c(params$root_paths, ".library_counts.tsv") %>%
+  set_names(root_names) %>%
+  map(read_tsv) %>%
+  bind_rows(.id = "_sample") %>%
+  mutate(combination_status = factor(combination_status, levels = rev(names(category_colours))))
+
+summary <- str_c(params$root_paths, ".summary.tsv") %>%
+  set_names(root_names) %>%
+  map(read_tsv) %>%
+  bind_rows(.id = "_sample")
+
+filtering <- str_c(params$root_paths, ".filtered.tsv") %>%
+  set_names(root_names) %>%
+  map(read_tsv) %>%
+  bind_rows(.id = "_sample")
+
+record_counts <- read_tsv(params$record_counts_file) %>%
+  pivot_wider(names_from = read, values_from = records)
+
+regions <- setdiff(names(library_counts), c("_sample", "_sample_disp", "group", "combination_status",
+                                            "combinations_in_library", "combination_id", "count"))
+lib_regions <- map(libraries, ~regions[regions %in% names(.)])
+
+samples <- sort(unique(c(
+  library_counts$`_sample`, summary$`_sample`, filtering$`_sample`, record_counts$sample_id
+)))
+n_samples <- length(samples)
+display_samples <- structure(shorten_names(samples), names = samples)
+
+library_counts <- mutate(library_counts, `_sample_disp` = display_samples[`_sample`])
+summary <- mutate(summary, `_sample_disp` = display_samples[`_sample`])
+filtering <- mutate(filtering, `_sample_disp` = display_samples[`_sample`])
+record_counts <- mutate(record_counts, `sample_id_disp` = display_samples[`sample_id`])
+
+pairs_match <- case_when(
+  "R2" %in% names(record_counts) && all(record_counts$R1 == record_counts$R2) ~ "paired_matching",
+  "R2" %in% names(record_counts) && !all(record_counts$R1 == record_counts$R2) ~ "paired_unmatched",
+  TRUE ~ "single_end"
+)
+```
+
+This report summarises DNAComb output on the following `r n_samples` samples:
+
+`r str_c(map2(names(display_samples), display_samples, \(x, y) if (x == y) str_c("* ", x) else str_c("* ", x, " (", y, ")")), collapse = "\n")`
+
+Shortened names (in brackets) are used in figures where the originals are too long to display cleanly.  
+
+Comparison was run against expected sequences in these libraries containing the bracketed regions:
+
+`r str_c(map2(names(lib_regions), lib_regions, \(x, y) str_c("* ",x, " (", str_c(y, collapse = ", "), ")")), collapse = "\n")`  
+  
+The final counts output by DNAComb are as follows:
+```{r summary_table}
+summary %>%
+  filter(group == "all", metric == "total") %>%
+  select(Sample = `_sample_disp`, Total = count) %>%
+  left_join(
+    summary %>%
+      filter(group == "unfiltered", metric == "total") %>%
+      select(Sample = `_sample_disp`, Unfiltered = count),
+    by = join_by(Sample)
+  ) %>%
+  mutate(`%` = scales::percent(Unfiltered / Total, accuracy = 0.1)) %>%
+  knitr::kable()
+```
+
+# Pipeline
+
+The pipeline started from raw `r if(pairs_match == "single_end"){"single"} else {"paired"}` end reads and applied the following operations:
+```{r pipeline}
+ops <- distinct(record_counts, label) %>%
+  filter(label %in% c("downsampled", "merged", "trimmed")) %>%
+  pull(label)
+
+out <- c("downsampled", "merged", "trimmed")
+out <- out[out %in% ops]
+out <- c(downsampled = "Downsampling (SeqTK)", merged = "Read Merging (PEAR)", trimmed = "Read Trimming (CutAdapt)")[out]
+out <- str_c("* ", c(out, "Counting (DNAComb)"), collapse = "\n")
+```
+`r out`
+
+`r if(pairs_match == "paired_unmatched") "WARNING: Forward and reverse read counts differ at at least 1 stage:"`
+`r if(pairs_match == "paired_unmatched") knitr::kable(record_counts)`
+`r if(pairs_match == "paired_unmatched") "This indicates a serious error somewhere during processing"`
+
+```{r pipeline_fig, fig.height=plot_size(n_samples, plus = 2, per_sample = 0.75), fig.width=7, fig.cap="Reads retained at each pipeline stage"}
+pipeline_counts <- bind_rows(
+  record_counts,
+  select(summary, `_sample_disp`, group, metric, count) %>%
+    filter(group == "filtered" & metric == "total" | group != "filtered" & metric != "total") %>%
+    mutate(
+      label = case_when(
+        group == "filtered" ~ "filtered",
+        metric %in% c("exact_match", "nearest_match") ~ "assigned",
+        TRUE ~ "unassigned"
+      ),
+      stage = max(record_counts$stage) + 1
+    ) %>%
+    count(sample_id_disp = `_sample_disp`, stage, label, wt = count, name = "R1")
+) %>%
+  group_by(stage) %>%
+  mutate(stage_name = case_when(
+    "raw" %in% label ~ "Raw",
+    "downsampled" %in% label ~ "Downsampling",
+    "merged" %in% label ~ "Merging",
+    "trimmed" %in% label ~ "Trimming",
+    "assigned" %in% label ~ "Counting",
+    TRUE ~ str_c("Stage ", stage)
+  )) %>%
+  ungroup() %>%
+  arrange(stage) %>%
+  mutate(stage_name = factor(stage_name, levels = unique(stage_name)))
+
+stage_colours <- c(
+  header1 = "white", raw = "#377eb8", gap1 = "white", gap2 = "white",
+  header2 = "white", downsampled = "#377eb8", gap3 = "white", gap4 = "white",
+  header3 = "white", merged = "#377eb8", unmerged = "#ff7f00", discarded = "#e41a1c",
+  header4 = "white", trimmed = "#377eb8", untrimmed = "#e41a1c", gap5 = "white",
+  header5 = "white", assigned = "#377eb8", unassigned = "#ff7f00", filtered = "#e41a1c"
+)
+
+stage_col_labs <- c(
+  header1 = "**Raw Reads**", raw = "Reads",  gap1 = "", gap2 = "",
+  header2 = "**Downsampling**", downsampled = "Downsampled", gap3 = "", gap4 = "",
+  header3 = "**Merging**", merged = "Merged", unmerged = "Unmerged", discarded = "Discarded",
+  header4 = "**Trimming**", trimmed = "Trimmed", untrimmed = "Untrimmed", gap5 = "",
+  header5 = "**Counting**", assigned = "Assigned", unassigned = "Unassigned", filtered = "Filtered"
+)
+
+ggplot(pipeline_counts, aes(x = stage_name, y = R1, fill = label)) +
+  facet_grid(rows = vars(sample_id_disp), labeller = label_wrap_gen()) +
+  geom_col(position = position_stack()) +
+  scale_fill_manual(name = "", values = stage_colours, 
+                    limits = names(stage_colours), labels = stage_col_labs) +
+  guides(fill = guide_legend(nrow = 4)) +
+  labs(x = "", y = "Count") +
+  theme(strip.placement = "outside",
+        legend.text = element_markdown(),
+        legend.position = "bottom")
+```
+
+```{r pipeline_loss, fig.cap="Fraction of reads retained after each stage"}
+pipeline_counts %>%
+  filter(label %in% c("raw", "downsampled", "merged", "trimmed", "assigned")) %>% 
+  arrange(stage) %>%
+  select(sample_id_disp, label, R1) %>%
+  pivot_wider(names_from = label, values_from = R1) %>%
+  mutate(across(-sample_id_disp, ~scales::label_percent(accuracy = 0.1)(./raw))) %>%
+  knitr::kable()
+```
+
+# DNAComb Filtering
+
+```{r filtering_fig, fig.height=plot_size(n_samples), fig.width=7, fig.cap="Reads filtered by DNAComb"}
+p_filtering_abs <- filter(summary, group == "filtered" & metric != "total" | group == "unfiltered" & metric == "total") %>%
+  mutate(metric = if_else(group == "filtered", metric, "unfiltered"),
+         metric = factor(metric, levels = rev(names(filter_colours)))) %>%
+  ggplot(aes(x = `_sample_disp`, y = count, fill = metric)) +
+  geom_col(width = 0.5) +
+  scale_fill_manual(name = "", values = filter_colours) +
+  labs(x = "", y = "Reads") +
+  coord_flip() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom")
+
+p_filtering_prop <- filter(summary, group == "filtered" & metric != "total" | group == "unfiltered" & metric == "total") %>%
+  mutate(metric = if_else(group == "filtered", metric, "unfiltered"),
+         metric = factor(metric, levels = rev(names(filter_colours)))) %>%
+  ggplot(aes(x = `_sample_disp`, y = overall_proportion, fill = metric)) +
+  geom_col(width = 0.5) +
+  scale_fill_manual(name = "", values = filter_colours) +
+  labs(x = "", y = "Proportion of reads") +
+  coord_flip() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom")
+
+p_filtering_abs + p_filtering_prop + guide_area() +
+  plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect")
+```
+
+`r if (nrow(filtering) > 0) "The top 5 filtered reads were:"`
+`r if (nrow(filtering) > 0) knitr::kable(slice_head(filtering, n = 5))`
+
+# DNAComb Assignment
+
+```{r assignment_fig, fig.height=plot_size(n_samples), fig.width=7, fig.cap="DNAComb read assignment"}
+p_matches_abs <- filter(summary, group == "unfiltered", metric != "total") %>%
+  mutate(metric = factor(metric, levels = rev(names(category_colours)))) %>%
+  ggplot(aes(x = `_sample_disp`, y = count, fill = metric)) +
+  geom_col(width = 0.5) +
+  scale_fill_manual(name = "", values = category_colours) +
+  labs(x = "", y = "Reads") +
+  coord_flip() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom")
+
+p_matches_prop <- filter(summary, group == "unfiltered", metric != "total") %>%
+  mutate(metric = factor(metric, levels = rev(names(category_colours)))) %>%
+  ggplot(aes(x = `_sample_disp`, y = group_proportion, fill = metric)) +
+  geom_col(width = 0.5) +
+  scale_fill_manual(name = "", values = category_colours) +
+  labs(x = "", y = "Proportion of reads") +
+  coord_flip() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom")
+
+p_matches_abs + p_matches_prop + guide_area() +
+  plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect")
+```
+
+# Library Completeness
+
+```{r completeness_fig, fig.height=plot_size(n_samples, plus = 0), fig.width=7, fig.cap="Fraction of combinations observed in each library"}
+calc_count <- function(regs, expected) {
+  filter(library_counts, combination_status == "match") %>%
+    select(`_sample_disp`, group, !!!rlang::syms(regs)) %>%
+    distinct(`_sample_disp`, !!!rlang::syms(regs)) %>%
+    group_by(`_sample_disp`) %>%
+    summarise(observed = n(), expected = expected)
+}
+
+if (length(libraries) > 1) {
+  completeness <- bind_rows(
+    map2(lib_regions, map_dbl(libraries, nrow), calc_count) %>% bind_rows(.id = "library"),
+    calc_count(unname(unlist(lib_regions)), reduce(libraries, \(i, x) i * nrow(x), .init = 1)) %>% mutate(library = "Combination")
+  ) %>%
+    mutate(p = observed / expected, library = factor(library, levels = c(sort(unique(library[library != "Combination"])), "Combination")))
+
+  ggplot(completeness, aes(y = `_sample_disp`, x = p, fill = library)) +
+    geom_col(width = 0.5, position = position_dodge()) +
+    lims(x = c(0, 1)) +
+    labs(x = "Completeness", y = "") +
+    scale_fill_brewer(name = "Library", palette = "Set1") +
+    theme(panel.grid.major.y = element_blank(),
+          panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
+          axis.ticks.y = element_blank())
+} else {
+  completeness <- calc_count(lib_regions[[1]], nrow(libraries[[1]])) %>%
+    mutate(p = observed / expected)
+  
+  ggplot(completeness, aes(y = `_sample_disp`, x = p)) +
+    geom_col(width = 0.5, fill = "#377eb8", position = position_dodge()) +
+    lims(x = c(0, 1)) +
+    labs(x = "Completeness", y = "") +
+    theme(panel.grid.major.y = element_blank(),
+          panel.grid.major.x = element_line(colour = "grey", linetype = "dotted"),
+          axis.ticks.y = element_blank())
+}
+```
+
+# Library Representation
+```{r representation_fig, fig.height=6, fig.width=7, fig.cap="Library Representation"}
+calc_library_representation <- function(tbl, ...) {
+  if (nrow(tbl) == 0) {
+    return(mutate(tbl, rank = numeric(), prop_reads = numeric(),
+                  prop_rank = numeric(), cumprop_reads = numeric()))
+  }
+
+  group_by(tbl, ...) %>%
+    arrange(count) %>%
+    mutate(rank = 1:n(),
+           prop_reads = count/sum(count),
+           prop_rank = rank/max(rank),
+           cumprop_reads = cumsum(prop_reads),
+           auc = sum(diff(prop_rank) * (head(cumprop_reads,-1) + tail(cumprop_reads,-1)))/2) %>%
+    ungroup()
+}
+
+rep_all <- count(library_counts, `_sample_disp`, !!!rlang::syms(regions), combination_status, combinations_in_library,
+                 combination_id, wt = count, name = "count") %>%
+  calc_library_representation(`_sample_disp`)
+
+rep_lib <- filter(library_counts, combinations_in_library == 1) %>%
+  count(`_sample_disp`, !!!rlang::syms(regions), combination_status, combinations_in_library,
+        combination_id, wt = count, name = "count") %>%
+  calc_library_representation(`_sample_disp`)
+
+if (n_samples > 8) {
+  top_lib <- distinct(rep_all, `_sample_disp`, auc) %>%
+    arrange(auc) %>%
+    slice(c(1, 2, 3, 4, n() - 3, n() - 2, n() - 1, n())) %>%
+    pull(`_sample_disp`)
+
+  p_rep_all <- ggplot(mapping = aes(x = prop_rank, y = cumprop_reads)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+    geom_line(data = filter(rep_all, !`_sample_disp` %in% top_lib), mapping = aes(group = `_sample_disp`)) +
+    geom_line(data = filter(rep_all, `_sample_disp` %in% top_lib), mapping = aes(colour = `_sample_disp`)) +
+    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "All Combinations") +
+    scale_colour_brewer(palette = "Dark2", name = "") +
+    guides(colour = guide_legend(direction = "horizontal", nrow = 3))
+
+  p_rep_lib <- ggplot(mapping = aes(x = prop_rank, y = cumprop_reads)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+    geom_line(data = filter(rep_lib, !`_sample_disp` %in% top_lib), mapping = aes(group = `_sample_disp`)) +
+    geom_line(data = filter(rep_lib, `_sample_disp` %in% top_lib), mapping = aes(colour = `_sample_disp`)) +
+    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "In Library") +
+    scale_colour_brewer(palette = "Dark2", name = "") +
+    guides(colour = guide_legend(direction = "horizontal", nrow = 3))
+} else {
+  leg_rows <- case_when(
+    n_samples > 6 ~ 3,
+    n_samples > 3 ~ 2,
+    TRUE ~ 1
+  )
+
+  p_rep_all <- ggplot(rep_all, aes(x = prop_rank, y = cumprop_reads, colour = `_sample_disp`)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+    geom_line() +
+    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "All Combinations") +
+    scale_colour_brewer(palette = "Dark2", name = "") +
+    guides(colour = guide_legend(direction = "horizontal", nrow = leg_rows))
+
+  p_rep_lib <- ggplot(rep_lib, aes(x = prop_rank, y = cumprop_reads, colour = `_sample_disp`)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+    geom_line() +
+    labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads", title = "In Library") +
+    scale_colour_brewer(palette = "Dark2", name = "") +
+    guides(colour = guide_legend(direction = "horizontal", nrow = leg_rows))
+}
+
+p_rep_all + p_rep_lib + guide_area() +
+  plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect", axis_titles = "collect")
+```
+
+```{r lib_representation_fig, fig.height=plot_size(length(libraries) %/% 2, min = 6, plus = 2, per_sample = 4), fig.width=7, fig.cap="Sub-library Representation"}
+calc_rep_lib <- function(lib, regs) {
+  count(library_counts, `_sample_disp`, !!!rlang::syms(regs), wt = count, name = "count") %>%
+    full_join(lib) %>%
+    drop_na(!!!rlang::syms(regs)) %>%
+    complete(`_sample_disp`, nesting(!!!rlang::syms(regs), `_id`), fill = list(count = 0)) %>%
+    calc_library_representation(`_sample_disp`) %>%
+    select(`_sample_disp`, count:auc)
+}
+
+if (length(libraries) > 1) {
+  representation <- map2(libraries, lib_regions, calc_rep_lib) %>%
+    bind_rows(.id = "library")
+  
+  if (n_samples > 8) {
+    top_lib <- distinct(representation, `_sample_disp`, auc) %>%
+      arrange(auc) %>%
+      slice(c(1, 2, 3, 4, n() - 3, n() - 2, n() - 1, n())) %>%
+      pull(`_sample_disp`)
+    
+    ggplot(mapping = aes(x = prop_rank, y = cumprop_reads)) +
+      facet_wrap(~library, ncol = 2) +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+      geom_line(data = filter(representation, !`_sample_disp` %in% top_lib), mapping = aes(group = `_sample_disp`)) +
+      geom_line(data = filter(representation, `_sample_disp` %in% top_lib), mapping = aes(colour = `_sample_disp`)) +
+      labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads") +
+      scale_colour_brewer(palette = "Dark2", name = "") +
+      guides(colour = guide_legend(direction = "horizontal", nrow = 2)) +
+      theme(legend.position = "bottom")
+  } else {
+    leg_rows <- case_when(
+      n_samples > 6 ~ 2,
+      TRUE ~ 1
+    )
+    
+    ggplot(representation, aes(x = prop_rank, y = cumprop_reads, colour = `_sample_disp`)) +
+      facet_wrap(~library, ncol = 2) +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+      geom_line() +
+      labs(x = "Proportional Rank", y = "Cumulative Proportion of Reads") +
+      scale_colour_brewer(palette = "Dark2", name = "") +
+      guides(colour = guide_legend(direction = "horizontal", nrow = leg_rows)) +
+      theme(legend.position = "bottom")
+  }
+}
+```

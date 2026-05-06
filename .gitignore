@@ -2,3 +2,5 @@
 .nextflow*
 data/*
 intermediates/*
+.Rproj*
+.positai
