@@ -26,7 +26,7 @@ process fastqc {
     } else {
         """
         [ ! -f ${meta.id}_f_${meta.label}.fastq.gz ] && ln -s ${reads[0]} ${meta.id}_f_${meta.label}.fastq.gz
-        [ ! -f ${meta.id}__r_${meta.label}.fastq.gz ] && ln -s ${reads[1]} ${meta.id}_r_${meta.label}.fastq.gz
+        [ ! -f ${meta.id}_r_${meta.label}.fastq.gz ] && ln -s ${reads[1]} ${meta.id}_r_${meta.label}.fastq.gz
         fastqc --threads $task.cpus ${meta.id}_f_${meta.label}.fastq.gz ${meta.id}_r_${meta.label}.fastq.gz
         """
     }
@@ -317,7 +317,7 @@ process qc_counts {
     val roots
 
     output:
-    path "dnacomb_qc_report.pdf", emit: qc_pdf
+    path "dnacomb_qc_report.html", emit: qc_html
 
     script:
     """
@@ -331,7 +331,6 @@ process qc_counts {
 
     stub:
     """
-    touch dnacomb_qc_report.pdf
     touch dnacomb_qc_report.html
     """
 }

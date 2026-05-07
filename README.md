@@ -32,6 +32,7 @@ The following R packages are needed:
 - magrittr
 - tidyverse
 - ggpubr
+- ggtext
 - patchwork
 
 ## Usage

@@ -7,7 +7,7 @@ from functools import partial
 import gzip
 import pathlib
 
-GZ_EXTS = set("gz", "gzip", "bgz", "bgzip")
+GZ_EXTS = {".gz", ".gzip", ".bgz", ".bgzip"}
 
 def open_seq(path):
     """
@@ -55,18 +55,18 @@ def main():
                 count = sum(1 for _ in seq_file)
 
                 if not count % 4 == 0:
-                    ValueError(f"FASTQ line count is not divisible by 4: {path}")
+                    raise ValueError(f"FASTQ line count is not divisible by 4: {path}")
 
                 count = count // 4
             else:
                 # Should never trigger as mode assigned in open_seq as fasta/fastq
-                ValueError(f"None fastq/a mode for {path}")
+                raise ValueError(f"None fastq/a mode for {path}")
         finally:
             seq_file.close()
 
-        # sample_id stage label read file format records
+        # sample stage label read file format records
         print(
-            args.sample_id, args.stage, args.label, paired,
+            args.sample, args.stage, args.label, paired,
             pathlib.Path(path).name, mode, count, sep="\t"
         )
 

@@ -25,7 +25,11 @@ params.trim.cutadapt_args = params.trim.cutadapt_args ?: ""
 params.quantify = params.quantify ?: [:]
 params.quantify.enabled = params.quantify.enabled ?: false
 params.quantify.libspec = params.quantify.libspec ?: ""
+params.quantify.library = params.quantify.library ?: []
 params.quantify.dnacomb_args = params.quantify.dnacomb_args ?:  ""
+
+params.qc = params.qc ?: [:]
+params.qc.seqkit = params.qc.seqkit ?: false
 
 // Include processes
 include {
@@ -124,7 +128,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         pear(downsampled_reads, channel.value(params.merge.pear_args))
 
         merged_reads = pear.out.assembled.map { meta, reads ->
-            tuple(meta + [label: "merged", stage: meta.stage + 1], reads)
+            tuple(meta + [label: "merged", stage: meta.stage + 1, single_end: true], reads)
         }
 
         unmerged_reads = pear.out.unassembled.map { meta, reads ->
@@ -132,7 +136,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         }
 
         discarded_reads = pear.out.discarded.map { meta, reads ->
-            tuple(meta + [label: "discarded", stage: meta.stage + 1], reads)
+            tuple(meta + [label: "discarded", stage: meta.stage + 1, single_end: true], reads)
         }
 
         pear_out = merged_reads.mix(unmerged_reads, discarded_reads)
@@ -200,6 +204,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
     } else {
         trimmed_reads = merged_reads
         cutadapt_out = channel.empty()
+        trim_json = channel.empty()
     }
 
     // Count records in each sequence file produced
@@ -231,7 +236,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
         )
 
         qc_in = dnacomb_out.map{x->x[1]}.collect()
-        roots = dnacomb.out.counts.map{x->x[1].baseName.replaceFirst(".counts", "")}.reduce{a,b-> a + " " + b}
+        roots = dnacomb.out.counts.map{x->x[1].baseName.replaceFirst(/\.counts/, "")}.reduce{a,b-> a + " " + b}
 
         qc_counts(
             qc_in,
@@ -241,7 +246,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
             roots
         )
 
-        qc_counts_out = qc_counts.out.qc_pdf
+        qc_counts_out = qc_counts.out.qc_html
     } else {
         dnacomb_out = channel.empty()
         qc_counts_out = channel.empty()
@@ -249,7 +254,7 @@ Nextflow pipeline processing generic sequencing read data in a configurable styl
 
     // MultiQC QC Summary
     multiqc(
-        fastqc_zips.mix(cutadapt.out.json.collect{x->x[1]}.ifEmpty([])).collect(),
+        fastqc_zips.mix(trim_json.collect{x->x[1]}.ifEmpty([])).collect(),
         channel.fromPath( params.multiqc_config ).first()
     )
 
@@ -316,7 +321,7 @@ output {
     }
 
     count_qc {
-        path "counts"
+        path "."
     }
 }
 

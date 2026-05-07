@@ -1,12 +1,11 @@
 ---
 title: "DNAComb QC"
 output:
-  pdf_document:
-    number_sections: true
   html_document:
     number_sections: true
+    toc: true
 params:
-  root_paths: !r character
+  root_paths: !r character()
   library_files: !r character()
   record_counts_file: null
 date: "`r Sys.Date()`"
@@ -87,6 +86,8 @@ filtering <- str_c(params$root_paths, ".filtered.tsv") %>%
   bind_rows(.id = "_sample")
 
 record_counts <- read_tsv(params$record_counts_file) %>%
+  group_by(sample_id, stage, label, read) %>%
+  summarise(records = sum(records), .groups = "drop") %>%
   pivot_wider(names_from = read, values_from = records)
 
 regions <- setdiff(names(library_counts), c("_sample", "_sample_disp", "group", "combination_status",
