@@ -79,6 +79,7 @@ trim {
 quantify {
     enabled = false     # Quantify reads with DNAComb
     libspec = ""        # Path to LibSpec JSON file
+    library = []        # Paths to library TSV file(s)
     dnacomb_args = ""   # Additional arguments to pass to DNAComb
 }
 
