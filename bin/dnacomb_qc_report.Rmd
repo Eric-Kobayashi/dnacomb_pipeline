@@ -15,6 +15,174 @@ header-includes:
  \usepackage{float}
 ---
 
+```{css, echo=FALSE}
+/* ===== Layout ===== */
+
+body {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 260px;
+  padding-right: 2rem;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Helvetica, Arial, sans-serif;
+
+  font-size: 15px;
+  line-height: 1.65;
+
+  color: #2b2b2b;
+  background-color: #fcfcfc;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ===== Floating TOC ===== */
+
+#TOC {
+  position: fixed;
+  left: 0;
+  top: 0;
+
+  width: 220px;
+  height: 100%;
+
+  overflow-y: auto;
+
+  padding: 1.5rem 1rem;
+
+  background: #f5f5f5;
+  border-right: 1px solid #dddddd;
+
+  font-size: 0.92em;
+}
+
+/* Remove bullets */
+#TOC ul {
+  list-style-type: none;
+  padding-left: 0.6rem;
+}
+
+/* Reduce nested indent */
+#TOC ul ul {
+  padding-left: 1rem;
+}
+
+/* TOC links */
+#TOC a {
+  color: #444;
+  text-decoration: none;
+}
+
+#TOC a:hover {
+  color: #1f78b4;
+  font-weight: 500;
+}
+
+#TOC li {
+  margin-bottom: 0.35rem;
+  line-height: 1.3;
+}
+
+/* ===== Headings ===== */
+
+h1, h2, h3, h4 {
+  color: #1f2937;
+  font-weight: 600;
+  margin-top: 2rem;
+}
+
+h1 {
+  border-bottom: 2px solid #d9d9d9;
+  padding-bottom: 0.3rem;
+}
+
+h2 {
+  border-bottom: 1px solid #e5e5e5;
+  padding-bottom: 0.2rem;
+}
+
+/* ===== Code ===== */
+
+code {
+  background: #f0f0f0;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+pre {
+  background: #f7f7f7;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 0.8rem;
+}
+
+/* ===== Tables ===== */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+th {
+  background: #f2f2f2;
+  font-weight: 600;
+}
+
+th, td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #dddddd;
+}
+
+p, ul, ol {
+  margin-bottom: 1rem;
+}
+
+/* ===== Figures ===== */
+
+img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.figure {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ===== Captions ===== */
+
+.caption,
+figcaption {
+  color: #666;
+  font-size: 0.92em;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* ===== Small screens ===== */
+
+@media screen and (max-width: 1000px) {
+
+  #TOC {
+    position: static;
+    width: auto;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #dddddd;
+  }
+
+  body {
+    margin-left: auto;
+    padding: 1rem;
+  }
+}
+```
+
 ```{r setup, include=FALSE}
 # Set parameters
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = 'H', fig.align = "center")
@@ -24,6 +192,7 @@ library(tidyverse)
 library(ggpubr)
 library(ggtext)
 library(patchwork)
+library(kableExtra)
 
 theme_set(theme_pubclean() + theme(legend.position = 'right',
                                    plot.title = element_text(hjust = 0.5),
@@ -39,6 +208,13 @@ plot_size <- function(n, min = 4, per_sample = 0.25, max = 11, plus = 0) {
 # Shorten long sample names
 shorten_names <- function(x, max = 12) {
   make.unique(str_c(str_sub(x, end = max - 3), if_else(nchar(x) > max - 3, "...", "")), sep = "")
+}
+
+# Wrap long sequences
+wrap_seq <- function(x, max_len=30, sep="<br>") {
+  pat <- str_c("(.{", max_len, "})")
+  rep <- str_c("\\1", sep)
+  str_replace_all(x, pat, rep)
 }
 
 filter_colours <- c(
@@ -157,6 +333,22 @@ out <- str_c("* ", c(out, "Counting (DNAComb)"), collapse = "\n")
 `r if(pairs_match == "paired_unmatched") "This indicates a serious error somewhere during processing"`
 
 ```{r pipeline_fig, fig.height=plot_size(n_samples, plus = 2, per_sample = 0.75), fig.width=7, fig.cap="Reads retained at each pipeline stage"}
+stage_colours <- c(
+  header1 = "white", raw = "#377eb8", gap1 = "white", gap2 = "white",
+  header2 = "white", downsampled = "#377eb8", gap3 = "white", gap4 = "white",
+  header3 = "white", merged = "#377eb8", unmerged = "#ff7f00", discarded = "#e41a1c",
+  header4 = "white", trimmed = "#377eb8", untrimmed = "#e41a1c", gap5 = "white",
+  header5 = "white", assigned = "#377eb8", unassigned = "#ff7f00", filtered = "#e41a1c"
+)
+
+stage_col_labs <- c(
+  header1 = "**Raw Reads**", raw = "Reads",  gap1 = "", gap2 = "",
+  header2 = "**Downsampling**", downsampled = "Downsampled", gap3 = "", gap4 = "",
+  header3 = "**Merging**", merged = "Merged", unmerged = "Unmerged", discarded = "Discarded",
+  header4 = "**Trimming**", trimmed = "Trimmed", untrimmed = "Untrimmed", gap5 = "",
+  header5 = "**Counting**", assigned = "Assigned", unassigned = "Unassigned", filtered = "Filtered"
+)
+
 pipeline_counts <- bind_rows(
   record_counts,
   select(summary, `_sample_disp`, group, metric, count) %>%
@@ -182,28 +374,13 @@ pipeline_counts <- bind_rows(
   )) %>%
   ungroup() %>%
   arrange(stage) %>%
-  mutate(stage_name = factor(stage_name, levels = unique(stage_name)))
-
-stage_colours <- c(
-  header1 = "white", raw = "#377eb8", gap1 = "white", gap2 = "white",
-  header2 = "white", downsampled = "#377eb8", gap3 = "white", gap4 = "white",
-  header3 = "white", merged = "#377eb8", unmerged = "#ff7f00", discarded = "#e41a1c",
-  header4 = "white", trimmed = "#377eb8", untrimmed = "#e41a1c", gap5 = "white",
-  header5 = "white", assigned = "#377eb8", unassigned = "#ff7f00", filtered = "#e41a1c"
-)
-
-stage_col_labs <- c(
-  header1 = "**Raw Reads**", raw = "Reads",  gap1 = "", gap2 = "",
-  header2 = "**Downsampling**", downsampled = "Downsampled", gap3 = "", gap4 = "",
-  header3 = "**Merging**", merged = "Merged", unmerged = "Unmerged", discarded = "Discarded",
-  header4 = "**Trimming**", trimmed = "Trimmed", untrimmed = "Untrimmed", gap5 = "",
-  header5 = "**Counting**", assigned = "Assigned", unassigned = "Unassigned", filtered = "Filtered"
-)
+  mutate(stage_name = factor(stage_name, levels = unique(stage_name)),
+         label = factor(label, levels = names(stage_colours)))
 
 ggplot(pipeline_counts, aes(x = stage_name, y = R1, fill = label)) +
   facet_grid(rows = vars(sample_id_disp), labeller = label_wrap_gen()) +
-  geom_col(position = position_stack()) +
-  scale_fill_manual(name = "", values = stage_colours, 
+  geom_col(position = position_stack(), show.legend = TRUE) +
+  scale_fill_manual(name = "", values = stage_colours, drop = FALSE,
                     limits = names(stage_colours), labels = stage_col_labs) +
   guides(fill = guide_legend(nrow = 4)) +
   labs(x = "", y = "Count") +
@@ -219,7 +396,7 @@ pipeline_counts %>%
   select(sample_id_disp, label, R1) %>%
   pivot_wider(names_from = label, values_from = R1) %>%
   mutate(across(-sample_id_disp, ~scales::label_percent(accuracy = 0.1)(./raw))) %>%
-  knitr::kable()
+  knitr::kable(digits = 4)
 ```
 
 # DNAComb Filtering
@@ -255,8 +432,22 @@ p_filtering_abs + p_filtering_prop + guide_area() +
   plot_layout(heights = c(1, 0.2), widths = c(0.5, 0.5), design = "12\n33", guides = "collect")
 ```
 
-`r if (nrow(filtering) > 0) "The top 5 filtered reads were:"`
-`r if (nrow(filtering) > 0) knitr::kable(slice_head(filtering, n = 5))`
+`r if (nrow(filtering) > 0) "The most common filtered reads were:"`
+`r if (nrow(filtering) == 0) "No reads were filtered."`
+
+```{r filtering_table}
+if (nrow(filtering) > 0) {
+  arrange(filtering, desc(count)) %>%
+    slice_head(n = 5) %>%
+    rename(sample = `_sample`) %>%
+    select(-`_sample_disp`) %>%
+    mutate(across(c(forward, reverse), \(x) wrap_seq(x, 35, "\n"))) %>%
+    kbl(digits = 4, format = "html") %>%
+    kable_styling() %>%
+    column_spec(3:4, width_max = "10cm") %>%
+    scroll_box(width = "100%", height = "500px")
+}
+```
 
 # DNAComb Assignment
 
@@ -293,7 +484,7 @@ p_matches_abs + p_matches_prop + guide_area() +
 
 ```{r completeness_fig, fig.height=plot_size(n_samples, plus = 0), fig.width=7, fig.cap="Fraction of combinations observed in each library"}
 calc_count <- function(regs, expected) {
-  filter(library_counts, combination_status == "match") %>%
+  filter(library_counts, combination_status == "match", combinations_in_library == 1) %>%
     select(`_sample_disp`, group, !!!rlang::syms(regs)) %>%
     distinct(`_sample_disp`, !!!rlang::syms(regs)) %>%
     group_by(`_sample_disp`) %>%
