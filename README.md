@@ -34,6 +34,9 @@ The following R packages are needed:
 - ggpubr
 - ggtext
 - patchwork
+- rmarkdown
+- knitr
+- kableExtra
 
 ## Usage
 
@@ -104,8 +107,10 @@ The pipeline outputs the processed files at each stage alongside QC reports in t
 | ---- | ----------- |
 | `fastqc/` | FastQC reports for each fastq file |
 | `multiqc_report.html`/`multiqc_report.zip` | MultiQC report combining the FastQC data |
+| `dnacomb_qc_report.html` | HTML QC report on pipeline and read assignment |
+| `record_counts.tsv` | Table of read counts at each stage |
 | `seqkit_stats.tsv` | Table of summary statistics of each fastq file |
 | `downsampled` | Down sampled reads |
 | `merged` | Merged reads |
 | `trimmed` | Trimmed reads |
-| `counts` | Count tables and QC plot |
+| `counts` | Count tables |
