@@ -305,7 +305,7 @@ bind_rows(
   filter(summary, group == "unfiltered", metric == "total") %>% select(Sample = `_sample_disp`, Unfiltered = count),
   filter(summary, group == "unfiltered", metric %in% c("exact_match", "nearest_match")) %>% 
     count(`_sample_disp`, wt = count) %>%
-    select(Sample = `_sample_disp`, Assigned = count),
+    select(Sample = `_sample_disp`, Assigned = n),
 ) %>%
   mutate(`% Unfiltered` = scales::percent(Unfiltered / Total, accuracy = 0.1),
          `% Assigned` = scales::percent(Assigned / Total, accuracy = 0.1)) %>%
