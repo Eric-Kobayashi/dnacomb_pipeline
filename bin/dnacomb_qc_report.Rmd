@@ -300,16 +300,16 @@ Comparison was run against expected sequences in these libraries containing the 
   
 The final counts output by DNAComb are as follows:
 ```{r summary_table}
-summary %>%
-  filter(group == "all", metric == "total") %>%
-  select(Sample = `_sample_disp`, Total = count) %>%
-  left_join(
-    summary %>%
-      filter(group == "unfiltered", metric == "total") %>%
-      select(Sample = `_sample_disp`, Unfiltered = count),
-    by = join_by(Sample)
-  ) %>%
-  mutate(`%` = scales::percent(Unfiltered / Total, accuracy = 0.1)) %>%
+bind_rows(
+  filter(summary, group == "all", metric == "total") %>% select(Sample = `_sample_disp`, Total = count),
+  filter(summary, group == "unfiltered", metric == "total") %>% select(Sample = `_sample_disp`, Unfiltered = count),
+  filter(summary, group == "unfiltered", metric %in% c("exact_match", "nearest_match")) %>% 
+    count(`_sample_disp`, wt = count) %>%
+    select(Sample = `_sample_disp`, Assigned = count),
+) %>%
+  mutate(`% Unfiltered` = scales::percent(Unfiltered / Total, accuracy = 0.1),
+         `% Assigned` = scales::percent(Assigned / Total, accuracy = 0.1)) %>%
+  select(Sample, Total, Unfiltered, `% Unfiltered`, Assigned, `% Assigned`) %>%
   knitr::kable()
 ```
 
@@ -332,7 +332,7 @@ out <- str_c("* ", c(out, "Counting (DNAComb)"), collapse = "\n")
 `r if(pairs_match == "paired_unmatched") knitr::kable(record_counts)`
 `r if(pairs_match == "paired_unmatched") "This indicates a serious error somewhere during processing"`
 
-```{r pipeline_fig, fig.height=plot_size(n_samples, plus = 2, per_sample = 0.75), fig.width=7, fig.cap="Reads retained at each pipeline stage"}
+```{r pipeline_fig, fig.height=plot_size(n_samples, plus = 2, per_sample = 1), fig.width=7, fig.cap="Reads retained at each pipeline stage"}
 stage_colours <- c(
   header1 = "white", raw = "#377eb8", gap1 = "white", gap2 = "white",
   header2 = "white", downsampled = "#377eb8", gap3 = "white", gap4 = "white",
