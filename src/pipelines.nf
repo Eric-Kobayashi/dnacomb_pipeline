@@ -256,8 +256,6 @@ process dnacomb {
 
     stub:
     """
-    jq '.library = "${library}"' ${libspec} > nf_patched_libspec.json
-    jq empty nf_patched_libspec.json || { echo "Patched JSON is invalid"; exit 1; }
     touch \\
        ${meta.id}.counts.tsv \\
        ${meta.id}.library_counts.tsv \\

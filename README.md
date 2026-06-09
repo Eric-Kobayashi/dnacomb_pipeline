@@ -61,7 +61,6 @@ Supported options:
 
 ```text
 samples = ""            # Path to sample sheet
-multiqc_config = ""     # Path to MultiQC config file, replacing the default from this repo
 
 downsample {
     enabled = false     # Turn on downsampling
@@ -90,6 +89,15 @@ qc {
     seqkit = false      # Generate stats table on all fastq files using seqkit stats (fairly slow so disabled by default)
 }
 ```
+
+Nextflow manages the following arguments for each tool, meaning they shouldn't be specified in the corresponding `tool_args` parameter:
+
+- `seqtk`: Seed and sample size as defined in params.
+- `pear`: `--threads/-f/-r/-o/-j`
+- `cutadapt`: `--cores/--json/-o/-p ${meta.id}_r_trimmed.fastq.gz/--untrimmed-output/--untrimmed-paired-output`
+- `dnacomb`: `--library-spec/--library/--verbose/--threads/--output`
+
+The MultiQC config (multiqc_config) and DNAComb QC Rmd template (dnacomb_qc_rmd) can also be configured via parameters, but they must take the expected inputs from the pipeline to work correctly or further pipeline modifications will be needed.
 
 ## Input
 
