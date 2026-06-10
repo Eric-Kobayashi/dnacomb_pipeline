@@ -1,5 +1,7 @@
 # DNAComb read processing pipeline
 
+![pipeline schematic](pipeline.png)
+
 A simple configurable Nextflow pipeline for initial processing of sequence reads in count tables using [DNAComb](https://github.com/allydunham/dnacomb).
 The pipeline applies a series of optional transformations to input fasta/fastq(.gz) files:
 

@@ -4,3 +4,4 @@ data/*
 intermediates/*
 .Rproj*
 .positai
+.$pipeline.drawio.bkp
