@@ -19,6 +19,7 @@ Additionally the fastq/a files at each stage are checked with [SeqKit Stats](htt
 You need the following tools installed to use the corresponding pipeline stages:
 
 - [Nextflow](https://www.nextflow.io) (>=25.04)
+- Docker or Singularity/Apptainer when using the container profiles
 - [DNAComb](https://github.com/allydunham/dnacomb)
 - [SeqTK](https://github.com/lh3/seqtk)
 - [PEAR](https://cme.h-its.org/exelixis/web/software/pear/doc.html)
@@ -48,12 +49,26 @@ The easiest way to run the pipeline is:
 nextflow run allydunham/dnacomb_pipeline -config path/to/config
 ```
 
+To run with the released DockerHub image through Singularity:
+
+```bash
+DNACOMB_VERSION=1.0.0 nextflow run . -profile singularity -config path/to/config
+```
+
+The container defaults to `mercury/dnacomb:<DNACOMB_VERSION>`. Set `DNACOMB_IMAGE_REPO` or `DNACOMB_IMAGE` to use another DockerHub repository or exact image.
+
 Alternatively if you want a local copy, for instance to customise, clone the repo and run:
 
 ```bash
 git clone https://github.com/allydunham/dnacomb_pipeline
 cd dnacomb_pipeline
 nextflow run main.nf -config path/to/config
+```
+
+Environment image release tooling lives in `env/`. Normal image release is:
+
+```bash
+make -C env release
 ```
 
 Configuration is kept fairly simple, with most options simply passing appropriate arguments to the tool so you should refer to the tool docs themselves to determine how to get the processing you need.

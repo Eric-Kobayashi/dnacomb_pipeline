@@ -1,0 +1,10 @@
+[workspace]
+name = "dnacomb-image-test"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+nextflow = "*"
+
+[tasks]
+nextflow-smoke = "./test-nextflow-dnacomb.sh"

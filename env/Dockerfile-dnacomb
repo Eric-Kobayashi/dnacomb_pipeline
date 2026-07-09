@@ -1,0 +1,110 @@
+FROM mercury/softpack-build:0.21.1.6 AS build
+
+
+RUN <<EOF0
+#!/bin/bash
+set -eo pipefail
+declare SINGULARITY_ENVIRONMENT=/etc/profile.d/99-docker-env.sh
+	# Hack to fix overly long R_LIBS env var (>128K).
+	sed -i 's@item = SetEnv(name, value, trace=self._trace(), force=force, raw=raw)@item = SetEnv(name, value.replace("/opt/software/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__", "") if name == "R_LIBS" else value, trace=self._trace(), force=force, raw=raw)@' /opt/spack/lib/spack/spack/util/environment.py
+	sed -i 's@item = AppendPath(name, path, separator=separator, trace=self._trace())@item = AppendPath(name, path.replace("/opt/software/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__", "") if name == "R_LIBS" else path, separator=separator, trace=self._trace())@' /opt/spack/lib/spack/spack/util/environment.py
+	sed -i 's@item = PrependPath(name, path, separator=separator, trace=self._trace())@item = PrependPath(name, path.replace("/opt/software/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__", "") if name == "R_LIBS" else path, separator=separator, trace=self._trace())@' /opt/spack/lib/spack/spack/util/environment.py
+	ln -s /opt/software/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__spac /__spac
+
+	# Create the manifest file for the installation in /opt/spack-environment
+	mkdir /opt/spack-environment && cd /opt/spack-environment
+	cat << EOF > spack.yaml
+spack:
+  # add package specs to the specs list
+  specs:
+  - fastqc@0.11.9 arch=None-None-x86_64_v3
+  - r-kableextra@1.4.0 arch=None-None-x86_64_v3
+  - py-cutadapt@5.2 arch=None-None-x86_64_v3
+  - py-numpy@2.1.2 arch=None-None-x86_64_v3
+  - py-multiqc@1.30 arch=None-None-x86_64_v3
+  - r-biostrings@2.70.3 arch=None-None-x86_64_v3
+  - gatk@4.4.0.0 arch=None-None-x86_64_v3
+  - r-rmarkdown@2.26 arch=None-None-x86_64_v3
+  - r-tidyverse@2.0.0 arch=None-None-x86_64_v3
+  - py-tqdm@4.66.1 arch=None-None-x86_64_v3
+  - r-knitr@1.45 arch=None-None-x86_64_v3
+  - bbmap@39.01 arch=None-None-x86_64_v3
+  - py-pandas@2.2.2 arch=None-None-x86_64_v3
+  - py-cyvcf2@0.31.1 arch=None-None-x86_64_v3
+  - r-magrittr@2.0.3 arch=None-None-x86_64_v3
+  - samtools@1.19.2 arch=None-None-x86_64_v3
+  - seqtk@1.4 arch=None-None-x86_64_v3
+  - r-ggpubr@0.6.0 arch=None-None-x86_64_v3
+  - py-biopython@1.85 arch=None-None-x86_64_v3
+  - pear@0.9.6 arch=None-None-x86_64_v3
+  - r-tidymultiqc@1.0.3 arch=None-None-x86_64_v3
+  - r-ggtext@0.1.2 arch=None-None-x86_64_v3
+  - r-argparser@0.7.1 arch=None-None-x86_64_v3
+  - seqkit@0.10.1 arch=None-None-x86_64_v3
+  - bowtie2@2.5.1 arch=None-None-x86_64_v3
+  - r-patchwork@1.2.0 arch=None-None-x86_64_v3
+  - bwa@0.7.17 arch=None-None-x86_64_v3
+  view: /opt/view
+  concretizer:
+    unify: true
+  config:
+    install_tree: /opt/software
+EOF
+
+	# Install all the required software
+	. /opt/spack/share/spack/setup-env.sh
+	tmpDir="$(mktemp -d)"
+	git clone "https://github.com/wtsi-hgi/spack-repo.git" "$tmpDir"
+	git -C "$tmpDir" checkout "4519735186aba95636381c37720a8b5de13dcae0"
+	spack repo add "$tmpDir"
+	spack config add "config:install_tree:padded_length:128"
+	spack -e . concretize
+	if bash -c "type -P xvfb-run" > /dev/null; then
+		xvfb-run -a spack -e . install --fail-fast
+	else
+		spack -e . install --fail-fast
+	fi || {
+		false
+	}
+	spack gc -y
+	spack env activate --sh -d . >> /opt/spack-environment/environment_modifications.sh
+
+	# Strip the binaries to reduce the size of the image
+	find -L /opt/view/* -type f -exec readlink -f '{}' \; | \
+	xargs file -i | \
+	grep 'charset=binary' | \
+	grep 'x-executable\|x-archive\|x-sharedlib' | \
+	awk -F: '{print $1}' | xargs strip || true
+
+	exes="$(find $(grep "^export PATH=" /opt/spack-environment/environment_modifications.sh | sed -e 's/^export PATH=//' -e 's/;$//' | tr ":" "\n" | grep /opt/view | tr "\n" " ") -maxdepth 1 -executable -type l | xargs -r -L 1 readlink)"
+	{
+		for pkg in "fastqc" "r-kableextra" "py-cutadapt" "py-numpy" "py-multiqc" "r-biostrings" "gatk" "r-rmarkdown" "r-tidyverse" "py-tqdm" "r-knitr" "bbmap" "py-pandas" "py-cyvcf2" "r-magrittr" "samtools" "dnacomb" "seqtk" "r-ggpubr" "py-biopython" "pear" "r-tidymultiqc" "r-ggtext" "r-argparser" "seqkit" "bowtie2" "r-patchwork" "bwa"; do
+			echo "$exes" | grep "/linux-[^/]*/gcc-[^/]*/$pkg-" || true
+		done | xargs -L 1 -r basename
+		echo "R"
+		echo "Rscript"
+		echo "python"
+		find /opt/view/bin/ -maxdepth 1 -type f -executable | xargs -r -L 1 basename
+	} | sort | uniq > executables
+
+
+EOF0
+
+FROM mercury/softpack-final:22.04.1 AS final
+
+COPY --from=build /opt/spack-environment /opt/spack-environment
+COPY --from=build /opt/software /opt/software
+COPY --from=build /opt/._view /opt/._view
+COPY --from=build /opt/view /opt/view
+COPY --from=build /opt/spack-environment/environment_modifications.sh /opt/spack-environment/environment_modifications.sh
+
+RUN <<EOF
+#!/bin/bash
+set -eo pipefail
+declare SINGULARITY_ENVIRONMENT=/etc/profile.d/99-docker-env.sh
+	# Modify the environment without relying on sourcing shell specific files at startup
+	cat /opt/spack-environment/environment_modifications.sh >> $SINGULARITY_ENVIRONMENT
+
+EOF
+
+ENTRYPOINT ["/bin/bash", "-l"]

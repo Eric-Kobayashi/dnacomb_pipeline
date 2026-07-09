@@ -1,0 +1,13 @@
+ARG DNACOMB_BASE_IMAGE=dnacomb-base:local
+ARG DNACOMB_VERSION=1.0.0
+
+FROM rust:1-bullseye AS dnacomb-build
+ARG DNACOMB_VERSION
+
+RUN cargo install dnacomb --version "${DNACOMB_VERSION}" --root /opt/dnacomb
+
+FROM ${DNACOMB_BASE_IMAGE} AS final
+
+COPY --from=dnacomb-build /opt/dnacomb/bin/dnacomb /usr/local/bin/dnacomb
+
+RUN chmod 0755 /usr/local/bin/dnacomb && /usr/local/bin/dnacomb --version
