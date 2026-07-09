@@ -5,3 +5,4 @@ intermediates/*
 .Rproj*
 .positai
 .$pipeline.drawio.bkp
+test/*
