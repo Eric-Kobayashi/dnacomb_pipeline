@@ -1,4 +1,6 @@
 name,read1,read2
-sample1,path/to/R1.fastq.gz,path/to/R2.fastq.gz
-sample2,path/to/R1.fastq.gz,path/to/R2.fastq.gz
-sample3,path/to/R1.fastq.gz,path/to/R2.fastq.gz
+rep1,test/pegrna.level6.rep1_forward.fq,test/pegrna.level6.rep1_reverse.fq
+rep2,test/pegrna.level6.rep2_forward.fq,test/pegrna.level6.rep2_reverse.fq
+rep3,test/pegrna.level6.rep3_forward.fq,test/pegrna.level6.rep3_reverse.fq
+rep4,test/pegrna.level6.rep4_forward.fq,test/pegrna.level6.rep4_reverse.fq
+rep5,test/pegrna.level6.rep5_forward.fq,test/pegrna.level6.rep5_reverse.fq
