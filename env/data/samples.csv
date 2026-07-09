@@ -1,0 +1,2 @@
+name,read1,read2
+smoke,data/R1.fastq.gz,data/R2.fastq.gz
