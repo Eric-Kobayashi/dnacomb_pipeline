@@ -52,7 +52,7 @@ nextflow run allydunham/dnacomb_pipeline -config path/to/config
 To run with the released DockerHub image through Singularity:
 
 ```bash
-DNACOMB_VERSION=1.0.0 nextflow run . -profile singularity -config path/to/config
+DNACOMB_VERSION=1.0.0 nextflow run . -with-singularity -config path/to/config
 ```
 
 The container defaults to `mercury/dnacomb:<DNACOMB_VERSION>`. Set `DNACOMB_IMAGE_REPO` or `DNACOMB_IMAGE` to use another DockerHub repository or exact image.

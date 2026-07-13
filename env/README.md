@@ -41,7 +41,7 @@ IMAGE_REPO=my-org/dnacomb make release
 Use released images from the pipeline:
 
 ```bash
-DNACOMB_VERSION=1.0.0 nextflow run . -profile singularity -config examples/example.config
+DNACOMB_VERSION=1.0.0 nextflow run . -with-singularity -config examples/example.config
 ```
 
 Run the committed synthetic smoke test:
