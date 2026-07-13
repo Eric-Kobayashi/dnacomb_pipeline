@@ -71,6 +71,12 @@ Environment image release tooling lives in `env/`. Normal image release is:
 make -C env release
 ```
 
+Run the test suite with Singularity:
+
+```bash
+make test
+```
+
 Configuration is kept fairly simple, with most options simply passing appropriate arguments to the tool so you should refer to the tool docs themselves to determine how to get the processing you need.
 Configuration can be passed on the command line (e.g. `nextflow run main.nf --samples path/to/samples.tsv`) or more often via the config file (see `examples/example.config`).
 

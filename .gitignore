@@ -8,6 +8,4 @@ intermediates/*
 env/.pixi/
 env/docker.token
 env/work/
-env/data/out/
-env/data/work/
 test/*

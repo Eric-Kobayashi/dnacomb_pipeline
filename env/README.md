@@ -43,9 +43,3 @@ Use released images from the pipeline:
 ```bash
 DNACOMB_VERSION=1.0.0 nextflow run . -with-singularity -config examples/example.config
 ```
-
-Run the committed synthetic smoke test:
-
-```bash
-make -C env smoketest
-```

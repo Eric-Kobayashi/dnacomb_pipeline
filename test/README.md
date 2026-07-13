@@ -2,8 +2,9 @@
 Simple test data to run all stages of the pipeline on. Useful for testing an environment
 is set up correctly or when developing new builds.
 
-Run with:
+Run the test with Singularity:
 
-`nextflow run main.nf -config test/test.config`
+`make test`
 
-Adding whatever `-profile` and `-with-singularity`/`-with-docker` is appropriate
+To choose a different container runtime, run Nextflow directly with
+`-config test/test.config`.

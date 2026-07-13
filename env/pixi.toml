@@ -5,6 +5,3 @@ platforms = ["linux-64"]
 
 [dependencies]
 nextflow = "*"
-
-[tasks]
-nextflow-smoke = "./test-nextflow-dnacomb.sh"
