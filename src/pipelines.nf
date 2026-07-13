@@ -7,6 +7,8 @@ nextflow.enable.strict = true
 // It contains a tuple [meta, reads] where meta is [id: str, single_end: bool] and
 // reads is either [r1, r2] or [r1]
 
+
+
 process fastqc {
     tag "$meta.id"
 
@@ -20,14 +22,55 @@ process fastqc {
     script:
     if (meta.single_end) {
         """
-        [ ! -f ${meta.id}_${meta.label}.fastq.gz ] && ln -s $reads ${meta.id}_${meta.label}.fastq.gz
-        fastqc --threads $task.cpus ${meta.id}_${meta.label}.fastq.gz
+        base="${meta.id}_${meta.label}"
+        
+        case "${reads}" in
+            *.fastq.gz) link="\${base}.fastq.gz" ;;
+            *.fq.gz)    link="\${base}.fq.gz" ;;
+            *.fastq)    link="\${base}.fastq" ;;
+            *.fq)       link="\${base}.fq" ;;
+            *.fasta.gz) link="\${base}.fasta.gz" ;;
+            *.fa.gz)    link="\${base}.fa.gz" ;;
+            *.fasta)    link="\${base}.fasta" ;;
+            *.fa)       link="\${base}.fa" ;;
+            *)          link="\${base}" ;;
+        esac
+
+        [ ! -f "\$link" ] && ln -s $reads "\$link"
+        fastqc --threads $task.cpus "\$link"
         """
     } else {
         """
-        [ ! -f ${meta.id}_f_${meta.label}.fastq.gz ] && ln -s ${reads[0]} ${meta.id}_f_${meta.label}.fastq.gz
-        [ ! -f ${meta.id}_r_${meta.label}.fastq.gz ] && ln -s ${reads[1]} ${meta.id}_r_${meta.label}.fastq.gz
-        fastqc --threads $task.cpus ${meta.id}_f_${meta.label}.fastq.gz ${meta.id}_r_${meta.label}.fastq.gz
+        f="${meta.id}_f_${meta.label}"
+        r="${meta.id}_r_${meta.label}"
+        
+        case "${reads[0]}" in
+            *.fastq.gz) f="\${f}.fastq.gz" ;;
+            *.fq.gz)    f="\${f}.fq.gz" ;;
+            *.fastq)    f="\${f}.fastq" ;;
+            *.fq)       f="\${f}.fq" ;;
+            *.fasta.gz) f="\${f}.fasta.gz" ;;
+            *.fa.gz)    f="\${f}.fa.gz" ;;
+            *.fasta)    f="\${f}.fasta" ;;
+            *.fa)       f="\${f}.fa" ;;
+            *)          f="\${f}" ;;
+        esac
+      
+        case "${reads[1]}" in
+            *.fastq.gz) r="\${r}.fastq.gz" ;;
+            *.fq.gz)    r="\${r}.fq.gz" ;;
+            *.fastq)    r="\${r}.fastq" ;;
+            *.fq)       r="\${r}.fq" ;;
+            *.fasta.gz) r="\${r}.fasta.gz" ;;
+            *.fa.gz)    r="\${r}.fa.gz" ;;
+            *.fasta)    r="\${r}.fasta" ;;
+            *.fa)       r="\${r}.fa" ;;
+            *)          r="\${r}" ;;
+        esac
+
+        [ ! -f "\$f" ] && ln -s ${reads[0]} "\$f"
+        [ ! -f "\$r" ] && ln -s ${reads[1]} "\$r"
+        fastqc --threads $task.cpus "\$f" "\$r"
         """
     }
 

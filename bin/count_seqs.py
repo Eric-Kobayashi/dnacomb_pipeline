@@ -23,7 +23,9 @@ def open_seq(path):
 
     with _open(path) as handle:
         l = handle.readline()
-        if l[0] == "@":
+        if not l:
+            mode = "fasta" # Use fasta mode for empty files as it's simpler
+        elif l[0] == "@":
             mode = "fastq"
         elif l[0] == ">":
             mode = "fasta"
