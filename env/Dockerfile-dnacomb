@@ -102,6 +102,10 @@ RUN <<EOF
 #!/bin/bash
 set -eo pipefail
 declare SINGULARITY_ENVIRONMENT=/etc/profile.d/99-docker-env.sh
+	apt-get update
+	apt-get install -y --no-install-recommends zip
+	rm -rf /var/lib/apt/lists/*
+
 	# Modify the environment without relying on sourcing shell specific files at startup
 	cat /opt/spack-environment/environment_modifications.sh >> $SINGULARITY_ENVIRONMENT
 

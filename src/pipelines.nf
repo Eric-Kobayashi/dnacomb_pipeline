@@ -103,20 +103,7 @@ process multiqc {
     script:
     """
     multiqc -c ${config} .
-    python3 - <<'PY'
-    from pathlib import Path
-    from zipfile import ZIP_DEFLATED, ZipFile
-
-    with ZipFile("multiqc_report.zip", "w", ZIP_DEFLATED) as archive:
-        for root in ("multiqc_report.html", "multiqc_report_data", "multiqc_report_plots"):
-            path = Path(root)
-            if path.is_file():
-                archive.write(path, path.as_posix())
-            elif path.is_dir():
-                for item in path.rglob("*"):
-                    if item.is_file():
-                        archive.write(item, item.as_posix())
-    PY
+    zip -r multiqc_report.zip multiqc_report.html multiqc_report_data multiqc_report_plots
     """
 
     stub:
